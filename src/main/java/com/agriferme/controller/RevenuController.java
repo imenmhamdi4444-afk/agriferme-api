@@ -21,7 +21,13 @@ public class RevenuController {
     @GetMapping
     public ResponseEntity<?> getAll() {
         List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, source, montant, date, description FROM revenus ORDER BY date DESC"
+            "SELECT id, source, montant, date, description FROM (" +
+            "  SELECT id, 'Stock' AS source, depense AS montant, CURRENT_DATE AS date, nom_produit AS description FROM stocks" +
+            "  UNION ALL" +
+            "  SELECT id, 'Cheptel' AS source, prix_total AS montant, CURRENT_DATE AS date, nom AS description FROM cheptels" +
+            "  UNION ALL" +
+            "  SELECT id, source, montant, date, description FROM revenus" +
+            ") AS combined ORDER BY date DESC"
         );
         return ResponseEntity.ok(rows);
     }
