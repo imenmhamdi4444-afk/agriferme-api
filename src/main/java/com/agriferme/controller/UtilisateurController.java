@@ -28,11 +28,22 @@ public class UtilisateurController {
     @GetMapping("/stats")
     public ResponseEntity<?> getStats() {
         Map<String, Object> stats = new HashMap<>();
-        stats.put("total", jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs", Long.class));
-        stats.put("actifs", jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE statut='ACTIF'", Long.class));
-        stats.put("inactifs", jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE statut='INACTIF'", Long.class));
-        stats.put("admins", jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE role='ADMIN'", Long.class));
-        stats.put("agriculteurs", jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE role='USER'", Long.class));
+        long total = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs", Long.class);
+        long actifs = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE statut='ACTIF'", Long.class);
+        long inactifs = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE statut='INACTIF'", Long.class);
+        long admins = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE role='ADMIN'", Long.class);
+        long agriculteurs = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE role='USER'", Long.class);
+        long avecTelephone = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE telephone IS NOT NULL AND telephone != ''", Long.class);
+
+        stats.put("total", total);
+        stats.put("actifs", actifs);
+        stats.put("inactifs", inactifs);
+        stats.put("admins", admins);
+        stats.put("agriculteurs", agriculteurs);
+        stats.put("avecTelephone", avecTelephone);
+        stats.put("sansTelephone", total - avecTelephone);
+        stats.put("tauxActifs", total > 0 ? Math.round((actifs * 100.0 / total) * 10.0) / 10.0 : 0);
+        stats.put("tauxAdmins", total > 0 ? Math.round((admins * 100.0 / total) * 10.0) / 10.0 : 0);
         return ResponseEntity.ok(stats);
     }
 
