@@ -1,6 +1,7 @@
 package com.agriferme.controller;
 
 import com.agriferme.model.Cheptel;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,31 +15,34 @@ import java.util.Map;
 @RequestMapping("/api/cheptels")
 public class CheptelController {
 
-    @Autowired
-    private JdbcTemplate jdbc;
+    @Autowired private JdbcTemplate jdbc;
 
     @GetMapping
-    public ResponseEntity<?> getAll() {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, nom, type_animal, date_naissance, etat_sante, maladie, quantite_vendue, prix_unitaire, prix_total FROM cheptels ORDER BY id"
-        );
+    public ResponseEntity<?> getAll(HttpServletRequest request) {
+        int userId = (int) request.getAttribute("userId");
+        String role = (String) request.getAttribute("role");
+        List<Map<String, Object>> rows;
+        if ("ADMIN".equals(role)) {
+            rows = jdbc.queryForList("SELECT * FROM cheptels ORDER BY id");
+        } else {
+            rows = jdbc.queryForList("SELECT * FROM cheptels WHERE utilisateur_id=? ORDER BY id", userId);
+        }
         return ResponseEntity.ok(rows);
     }
 
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody Cheptel c) {
+    public ResponseEntity<?> create(@RequestBody Cheptel c, HttpServletRequest request) {
         try {
+            int userId = (int) request.getAttribute("userId");
             double qte = c.getQuantiteVendue() != null ? c.getQuantiteVendue() : 0.0;
             double prix = c.getPrixUnitaire() != null ? c.getPrixUnitaire() : 0.0;
-            Date dateNaissance = c.getDateNaissance() != null && !c.getDateNaissance().isEmpty()
-                ? Date.valueOf(c.getDateNaissance()) : null;
-
+            Date dateNaissance = c.getDateNaissance() != null && !c.getDateNaissance().isEmpty() ? Date.valueOf(c.getDateNaissance()) : null;
             jdbc.update(
-                "INSERT INTO cheptels (nom, type_animal, date_naissance, etat_sante, maladie, quantite_vendue, prix_unitaire, prix_total) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO cheptels (nom, type_animal, date_naissance, etat_sante, maladie, quantite_vendue, prix_unitaire, prix_total, utilisateur_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 c.getNom(), c.getTypeAnimal(), dateNaissance,
                 c.getEtatSante() != null ? c.getEtatSante() : "Bon",
                 c.getMaladie() != null ? c.getMaladie() : "",
-                qte, prix, qte * prix
+                qte, prix, qte * prix, userId
             );
             return ResponseEntity.ok(Map.of("message", "Animal ajoute"));
         } catch (Exception e) {
@@ -48,19 +52,18 @@ public class CheptelController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable int id, @RequestBody Cheptel c) {
+    public ResponseEntity<?> update(@PathVariable int id, @RequestBody Cheptel c, HttpServletRequest request) {
         try {
+            int userId = (int) request.getAttribute("userId");
             double qte = c.getQuantiteVendue() != null ? c.getQuantiteVendue() : 0.0;
             double prix = c.getPrixUnitaire() != null ? c.getPrixUnitaire() : 0.0;
-            Date dateNaissance = c.getDateNaissance() != null && !c.getDateNaissance().isEmpty()
-                ? Date.valueOf(c.getDateNaissance()) : null;
-
+            Date dateNaissance = c.getDateNaissance() != null && !c.getDateNaissance().isEmpty() ? Date.valueOf(c.getDateNaissance()) : null;
             jdbc.update(
-                "UPDATE cheptels SET nom=?, type_animal=?, date_naissance=?, etat_sante=?, maladie=?, quantite_vendue=?, prix_unitaire=?, prix_total=? WHERE id=?",
+                "UPDATE cheptels SET nom=?, type_animal=?, date_naissance=?, etat_sante=?, maladie=?, quantite_vendue=?, prix_unitaire=?, prix_total=? WHERE id=? AND utilisateur_id=?",
                 c.getNom(), c.getTypeAnimal(), dateNaissance,
                 c.getEtatSante() != null ? c.getEtatSante() : "Bon",
                 c.getMaladie() != null ? c.getMaladie() : "",
-                qte, prix, qte * prix, id
+                qte, prix, qte * prix, id, userId
             );
             return ResponseEntity.ok(Map.of("message", "Animal modifie"));
         } catch (Exception e) {
@@ -70,9 +73,10 @@ public class CheptelController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable int id) {
+    public ResponseEntity<?> delete(@PathVariable int id, HttpServletRequest request) {
         try {
-            jdbc.update("DELETE FROM cheptels WHERE id=?", id);
+            int userId = (int) request.getAttribute("userId");
+            jdbc.update("DELETE FROM cheptels WHERE id=? AND utilisateur_id=?", id, userId);
             return ResponseEntity.ok(Map.of("message", "Animal supprime"));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));

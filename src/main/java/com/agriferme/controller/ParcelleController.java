@@ -1,6 +1,7 @@
 package com.agriferme.controller;
 
 import com.agriferme.model.Parcelle;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,24 +14,29 @@ import java.util.Map;
 @RequestMapping("/api/parcelles")
 public class ParcelleController {
 
-    @Autowired
-    private JdbcTemplate jdbc;
+    @Autowired private JdbcTemplate jdbc;
 
     @GetMapping
-    public ResponseEntity<?> getAll() {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, nom, surface, localisation, culture_actuelle FROM parcelles ORDER BY id"
-        );
+    public ResponseEntity<?> getAll(HttpServletRequest request) {
+        int userId = (int) request.getAttribute("userId");
+        String role = (String) request.getAttribute("role");
+        List<Map<String, Object>> rows;
+        if ("ADMIN".equals(role)) {
+            rows = jdbc.queryForList("SELECT * FROM parcelles ORDER BY id");
+        } else {
+            rows = jdbc.queryForList("SELECT * FROM parcelles WHERE utilisateur_id=? ORDER BY id", userId);
+        }
         return ResponseEntity.ok(rows);
     }
 
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody Parcelle p) {
+    public ResponseEntity<?> create(@RequestBody Parcelle p, HttpServletRequest request) {
         try {
+            int userId = (int) request.getAttribute("userId");
             jdbc.update(
-                "INSERT INTO parcelles (nom, surface, localisation, culture_actuelle) VALUES (?, ?, ?, ?)",
+                "INSERT INTO parcelles (nom, surface, localisation, culture_actuelle, utilisateur_id) VALUES (?, ?, ?, ?, ?)",
                 p.getNom(), p.getSurface(), p.getLocalisation(),
-                p.getCultureActuelle() != null ? p.getCultureActuelle() : ""
+                p.getCultureActuelle() != null ? p.getCultureActuelle() : "", userId
             );
             return ResponseEntity.ok(Map.of("message", "Parcelle ajoutee"));
         } catch (Exception e) {
@@ -40,12 +46,13 @@ public class ParcelleController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable int id, @RequestBody Parcelle p) {
+    public ResponseEntity<?> update(@PathVariable int id, @RequestBody Parcelle p, HttpServletRequest request) {
         try {
+            int userId = (int) request.getAttribute("userId");
             jdbc.update(
-                "UPDATE parcelles SET nom=?, surface=?, localisation=?, culture_actuelle=? WHERE id=?",
+                "UPDATE parcelles SET nom=?, surface=?, localisation=?, culture_actuelle=? WHERE id=? AND utilisateur_id=?",
                 p.getNom(), p.getSurface(), p.getLocalisation(),
-                p.getCultureActuelle() != null ? p.getCultureActuelle() : "", id
+                p.getCultureActuelle() != null ? p.getCultureActuelle() : "", id, userId
             );
             return ResponseEntity.ok(Map.of("message", "Parcelle modifiee"));
         } catch (Exception e) {
@@ -55,9 +62,10 @@ public class ParcelleController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable int id) {
+    public ResponseEntity<?> delete(@PathVariable int id, HttpServletRequest request) {
         try {
-            jdbc.update("DELETE FROM parcelles WHERE id=?", id);
+            int userId = (int) request.getAttribute("userId");
+            jdbc.update("DELETE FROM parcelles WHERE id=? AND utilisateur_id=?", id, userId);
             return ResponseEntity.ok(Map.of("message", "Parcelle supprimee"));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));

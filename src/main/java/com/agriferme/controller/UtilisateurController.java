@@ -4,6 +4,7 @@ import com.agriferme.model.Utilisateur;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -14,8 +15,8 @@ import java.util.Map;
 @RequestMapping("/api/utilisateurs")
 public class UtilisateurController {
 
-    @Autowired
-    private JdbcTemplate jdbc;
+    @Autowired private JdbcTemplate jdbc;
+    @Autowired private BCryptPasswordEncoder passwordEncoder;
 
     @GetMapping
     public ResponseEntity<?> getAll() {
@@ -34,7 +35,6 @@ public class UtilisateurController {
         long admins = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE role='ADMIN'", Long.class);
         long agriculteurs = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE role='USER'", Long.class);
         long avecTelephone = jdbc.queryForObject("SELECT COUNT(*) FROM utilisateurs WHERE telephone IS NOT NULL AND telephone != ''", Long.class);
-
         stats.put("total", total);
         stats.put("actifs", actifs);
         stats.put("inactifs", inactifs);
@@ -50,9 +50,10 @@ public class UtilisateurController {
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Utilisateur u) {
         try {
+            String hashedPassword = passwordEncoder.encode(u.getMotDePasse());
             jdbc.update(
                 "INSERT INTO utilisateurs (nom_complet, email, mot_de_passe, role, telephone, statut) VALUES (?, ?, ?, ?, ?, 'ACTIF')",
-                u.getNomComplet(), u.getEmail(), u.getMotDePasse(),
+                u.getNomComplet(), u.getEmail(), hashedPassword,
                 u.getRole() != null ? u.getRole() : "USER",
                 u.getTelephone() != null ? u.getTelephone() : ""
             );

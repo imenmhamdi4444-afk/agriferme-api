@@ -1,6 +1,7 @@
 package com.agriferme.controller;
 
 import com.agriferme.model.Culture;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,30 +15,32 @@ import java.util.Map;
 @RequestMapping("/api/cultures")
 public class CultureController {
 
-    @Autowired
-    private JdbcTemplate jdbc;
+    @Autowired private JdbcTemplate jdbc;
 
     @GetMapping
-    public ResponseEntity<?> getAll() {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, nom, date_semis, date_recolte_prevue, parcelle_id, parcelle_nom, statut FROM cultures ORDER BY id"
-        );
+    public ResponseEntity<?> getAll(HttpServletRequest request) {
+        int userId = (int) request.getAttribute("userId");
+        String role = (String) request.getAttribute("role");
+        List<Map<String, Object>> rows;
+        if ("ADMIN".equals(role)) {
+            rows = jdbc.queryForList("SELECT * FROM cultures ORDER BY id");
+        } else {
+            rows = jdbc.queryForList("SELECT * FROM cultures WHERE utilisateur_id=? ORDER BY id", userId);
+        }
         return ResponseEntity.ok(rows);
     }
 
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody Culture c) {
+    public ResponseEntity<?> create(@RequestBody Culture c, HttpServletRequest request) {
         try {
-            Date dateSemis = c.getDateSemis() != null && !c.getDateSemis().isEmpty()
-                ? Date.valueOf(c.getDateSemis()) : null;
-            Date dateRecolte = c.getDateRecoltePrevue() != null && !c.getDateRecoltePrevue().isEmpty()
-                ? Date.valueOf(c.getDateRecoltePrevue()) : null;
-
+            int userId = (int) request.getAttribute("userId");
+            Date dateSemis = c.getDateSemis() != null && !c.getDateSemis().isEmpty() ? Date.valueOf(c.getDateSemis()) : null;
+            Date dateRecolte = c.getDateRecoltePrevue() != null && !c.getDateRecoltePrevue().isEmpty() ? Date.valueOf(c.getDateRecoltePrevue()) : null;
             jdbc.update(
-                "INSERT INTO cultures (nom, date_semis, date_recolte_prevue, parcelle_id, parcelle_nom, statut) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO cultures (nom, date_semis, date_recolte_prevue, parcelle_id, parcelle_nom, statut, utilisateur_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 c.getNom(), dateSemis, dateRecolte, c.getParcelleId(),
                 c.getParcelleNom() != null ? c.getParcelleNom() : "",
-                c.getStatut() != null ? c.getStatut() : "Planifiee"
+                c.getStatut() != null ? c.getStatut() : "Planifiee", userId
             );
             return ResponseEntity.ok(Map.of("message", "Culture ajoutee"));
         } catch (Exception e) {
@@ -47,18 +50,16 @@ public class CultureController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable int id, @RequestBody Culture c) {
+    public ResponseEntity<?> update(@PathVariable int id, @RequestBody Culture c, HttpServletRequest request) {
         try {
-            Date dateSemis = c.getDateSemis() != null && !c.getDateSemis().isEmpty()
-                ? Date.valueOf(c.getDateSemis()) : null;
-            Date dateRecolte = c.getDateRecoltePrevue() != null && !c.getDateRecoltePrevue().isEmpty()
-                ? Date.valueOf(c.getDateRecoltePrevue()) : null;
-
+            int userId = (int) request.getAttribute("userId");
+            Date dateSemis = c.getDateSemis() != null && !c.getDateSemis().isEmpty() ? Date.valueOf(c.getDateSemis()) : null;
+            Date dateRecolte = c.getDateRecoltePrevue() != null && !c.getDateRecoltePrevue().isEmpty() ? Date.valueOf(c.getDateRecoltePrevue()) : null;
             jdbc.update(
-                "UPDATE cultures SET nom=?, date_semis=?, date_recolte_prevue=?, parcelle_id=?, parcelle_nom=?, statut=? WHERE id=?",
+                "UPDATE cultures SET nom=?, date_semis=?, date_recolte_prevue=?, parcelle_id=?, parcelle_nom=?, statut=? WHERE id=? AND utilisateur_id=?",
                 c.getNom(), dateSemis, dateRecolte, c.getParcelleId(),
                 c.getParcelleNom() != null ? c.getParcelleNom() : "",
-                c.getStatut() != null ? c.getStatut() : "Planifiee", id
+                c.getStatut() != null ? c.getStatut() : "Planifiee", id, userId
             );
             return ResponseEntity.ok(Map.of("message", "Culture modifiee"));
         } catch (Exception e) {
@@ -68,9 +69,10 @@ public class CultureController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable int id) {
+    public ResponseEntity<?> delete(@PathVariable int id, HttpServletRequest request) {
         try {
-            jdbc.update("DELETE FROM cultures WHERE id=?", id);
+            int userId = (int) request.getAttribute("userId");
+            jdbc.update("DELETE FROM cultures WHERE id=? AND utilisateur_id=?", id, userId);
             return ResponseEntity.ok(Map.of("message", "Culture supprimee"));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
