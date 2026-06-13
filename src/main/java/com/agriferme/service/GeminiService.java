@@ -11,7 +11,7 @@ import java.util.Map;
 @Service
 public class GeminiService {
 
-    private static final String OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+    private static final String GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
     @Value("${gemini.api.key}")
     private String apiKey;
@@ -27,7 +27,7 @@ public class GeminiService {
             "Réponds en français de façon claire et concise.";
 
         Map<String, Object> requestBody = Map.of(
-            "model", "openai/gpt-4o-mini",
+            "model", "llama-3.3-70b-versatile",
             "messages", List.of(
                 Map.of("role", "system", "content", systemPrompt),
                 Map.of("role", "user", "content", userMessage)
@@ -37,13 +37,11 @@ public class GeminiService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiKey);
-        headers.add("HTTP-Referer", "http://localhost:8080");
-        headers.add("X-Title", "Gestion Agricole");
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
         try {
-            ResponseEntity<Map> response = rest.exchange(OPENROUTER_URL, HttpMethod.POST, entity, Map.class);
+            ResponseEntity<Map> response = rest.exchange(GROQ_URL, HttpMethod.POST, entity, Map.class);
             Map body = response.getBody();
             if (body != null && body.containsKey("choices")) {
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) body.get("choices");
