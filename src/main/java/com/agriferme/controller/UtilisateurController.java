@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +46,70 @@ public class UtilisateurController {
         stats.put("tauxActifs", total > 0 ? Math.round((actifs * 100.0 / total) * 10.0) / 10.0 : 0);
         stats.put("tauxAdmins", total > 0 ? Math.round((admins * 100.0 / total) * 10.0) / 10.0 : 0);
         return ResponseEntity.ok(stats);
+    }
+
+    // 2. Get own profile
+    @GetMapping("/me")
+    public ResponseEntity<?> getProfile(HttpServletRequest request) {
+        try {
+            int userId = (int) request.getAttribute("userId");
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT id, nom_complet, email, role, telephone, statut FROM utilisateurs WHERE id=?", userId
+            );
+            if (rows.isEmpty()) return ResponseEntity.status(404).body(Map.of("error", "Utilisateur non trouve"));
+            return ResponseEntity.ok(rows.get(0));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // 2. Update own profile
+    @PutMapping("/me")
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        try {
+            int userId = (int) request.getAttribute("userId");
+            jdbc.update(
+                "UPDATE utilisateurs SET nom_complet=?, telephone=? WHERE id=?",
+                body.get("nomComplet"), body.get("telephone"), userId
+            );
+            return ResponseEntity.ok(Map.of("message", "Profil mis a jour"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // 1. Change own password
+    @PutMapping("/me/password")
+    public ResponseEntity<?> changePassword(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        try {
+            int userId = (int) request.getAttribute("userId");
+            String currentPassword = body.get("currentPassword");
+            String newPassword = body.get("newPassword");
+
+            if (newPassword == null || newPassword.length() < 6) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Le nouveau mot de passe doit avoir au moins 6 caracteres"));
+            }
+
+            // Verify current password
+            List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT mot_de_passe FROM utilisateurs WHERE id=?", userId
+            );
+            if (rows.isEmpty()) return ResponseEntity.status(404).body(Map.of("error", "Utilisateur non trouve"));
+
+            String stored = (String) rows.get(0).get("mot_de_passe");
+            boolean valid = stored.startsWith("$2a$") ?
+                passwordEncoder.matches(currentPassword, stored) :
+                currentPassword.equals(stored);
+
+            if (!valid) return ResponseEntity.status(401).body(Map.of("error", "Mot de passe actuel incorrect"));
+
+            // Update with hashed new password
+            String hashed = passwordEncoder.encode(newPassword);
+            jdbc.update("UPDATE utilisateurs SET mot_de_passe=? WHERE id=?", hashed, userId);
+            return ResponseEntity.ok(Map.of("message", "Mot de passe modifie avec succes"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PostMapping
