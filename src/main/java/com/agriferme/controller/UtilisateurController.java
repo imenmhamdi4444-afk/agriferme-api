@@ -125,6 +125,13 @@ public class UtilisateurController {
             return ResponseEntity.ok(Map.of("message", "Utilisateur ajoute"));
         } catch (Exception e) {
             e.printStackTrace();
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("duplicate key") && msg.contains("email")) {
+                return ResponseEntity.status(409).body(Map.of("error", "Cet email est deja utilise par un autre compte."));
+            }
+            if (u.getMotDePasse() == null || u.getMotDePasse().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Le mot de passe est obligatoire."));
+            }
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }

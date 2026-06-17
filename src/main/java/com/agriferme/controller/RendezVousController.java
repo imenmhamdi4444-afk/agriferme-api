@@ -22,9 +22,20 @@ public class RendezVousController {
         String role = (String) request.getAttribute("role");
         List<Map<String, Object>> rows;
         if ("ADMIN".equals(role)) {
-            rows = jdbc.queryForList("SELECT * FROM rendez_vous ORDER BY created_at DESC");
+            // Admin sees all RDVs with farmer email and vet commission rate
+            rows = jdbc.queryForList(
+                "SELECT rv.*, v.commission_montant, u.email AS utilisateur_email, u.nom_complet AS utilisateur_nom " +
+                "FROM rendez_vous rv " +
+                "LEFT JOIN veterinaires v ON rv.veterinaire_id = v.id " +
+                "LEFT JOIN utilisateurs u ON rv.utilisateur_id = u.id " +
+                "ORDER BY rv.created_at DESC");
         } else {
-            rows = jdbc.queryForList("SELECT * FROM rendez_vous WHERE utilisateur_id=? ORDER BY created_at DESC", userId);
+            // Farmer sees only their own RDVs
+            rows = jdbc.queryForList(
+                "SELECT rv.*, v.commission_montant " +
+                "FROM rendez_vous rv " +
+                "LEFT JOIN veterinaires v ON rv.veterinaire_id = v.id " +
+                "WHERE rv.utilisateur_id=? ORDER BY rv.created_at DESC", userId);
         }
         return ResponseEntity.ok(rows);
     }
@@ -34,10 +45,11 @@ public class RendezVousController {
         try {
             int userId = (int) request.getAttribute("userId");
             Date dateRdv = Date.valueOf(body.get("dateRdv").toString());
-            Integer vetId = body.get("veterinaireId") != null ? Integer.parseInt(body.get("veterinaireId").toString()) : null;
-
+            Integer vetId = body.get("veterinaireId") != null
+                ? Integer.parseInt(body.get("veterinaireId").toString()) : null;
             jdbc.update(
-                "INSERT INTO rendez_vous (utilisateur_id, animal_nom, animal_type, veterinaire_id, veterinaire_nom, date_rdv, motif, statut) VALUES (?, ?, ?, ?, ?, ?, ?, 'En attente')",
+                "INSERT INTO rendez_vous (utilisateur_id, animal_nom, animal_type, veterinaire_id, veterinaire_nom, date_rdv, motif, statut) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 'En attente')",
                 userId,
                 body.get("animalNom"),
                 body.get("animalType"),

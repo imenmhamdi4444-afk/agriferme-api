@@ -7,6 +7,7 @@ public class Veterinaire {
     private String specialite;
     private String ville;
     private String statut;
+    private Double commissionMontant;
 
     public String getNom() { return nom; }
     public void setNom(String nom) { this.nom = nom; }
@@ -20,4 +21,6 @@ public class Veterinaire {
     public void setVille(String ville) { this.ville = ville; }
     public String getStatut() { return statut; }
     public void setStatut(String statut) { this.statut = statut; }
+    public Double getCommissionMontant() { return commissionMontant; }
+    public void setCommissionMontant(Double commissionMontant) { this.commissionMontant = commissionMontant; }
 }

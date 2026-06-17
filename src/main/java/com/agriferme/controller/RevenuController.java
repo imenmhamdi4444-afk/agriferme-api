@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.sql.Date;
 import java.util.HashMap;
@@ -15,31 +16,29 @@ import java.util.Map;
 @RequestMapping("/api/revenus")
 public class RevenuController {
 
-    @Autowired
-    private JdbcTemplate jdbc;
+    @Autowired private JdbcTemplate jdbc;
 
     @GetMapping
-    public ResponseEntity<?> getAll() {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-            "SELECT id, source, montant, date, description FROM (" +
-            "  SELECT id, 'Stock' AS source, depense AS montant, CURRENT_DATE AS date, nom_produit AS description FROM stocks" +
-            "  UNION ALL" +
-            "  SELECT id, 'Cheptel' AS source, prix_total AS montant, CURRENT_DATE AS date, nom AS description FROM cheptels" +
-            "  UNION ALL" +
-            "  SELECT id, source, montant, date, description FROM revenus" +
-            ") AS combined ORDER BY date DESC"
-        );
+    public ResponseEntity<?> getAll(HttpServletRequest request) {
+        int userId = (int) request.getAttribute("userId");
+        String role = (String) request.getAttribute("role");
+        List<Map<String, Object>> rows;
+        if ("ADMIN".equals(role)) {
+            rows = jdbc.queryForList("SELECT * FROM revenus ORDER BY date DESC");
+        } else {
+            rows = jdbc.queryForList("SELECT * FROM revenus WHERE utilisateur_id=? ORDER BY date DESC", userId);
+        }
         return ResponseEntity.ok(rows);
     }
 
     @GetMapping("/stats")
-    public ResponseEntity<?> getStats() {
-        Double total = jdbc.queryForObject(
-            "SELECT COALESCE(SUM(montant), 0) FROM revenus", Double.class
-        );
+    public ResponseEntity<?> getStats(HttpServletRequest request) {
+        int userId = (int) request.getAttribute("userId");
+        String role = (String) request.getAttribute("role");
+        String where = "ADMIN".equals(role) ? "" : " WHERE utilisateur_id=" + userId;
+        Double total = jdbc.queryForObject("SELECT COALESCE(SUM(montant), 0) FROM revenus" + where, Double.class);
         List<Map<String, Object>> parSource = jdbc.queryForList(
-            "SELECT source, SUM(montant) as total FROM revenus GROUP BY source ORDER BY total DESC"
-        );
+            "SELECT source, SUM(montant) as total FROM revenus" + where + " GROUP BY source ORDER BY total DESC");
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalRevenus", total);
         stats.put("parSource", parSource);
@@ -47,17 +46,18 @@ public class RevenuController {
     }
 
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody Revenu r) {
+    public ResponseEntity<?> create(@RequestBody Revenu r, HttpServletRequest request) {
         try {
+            int userId = (int) request.getAttribute("userId");
             Date date = r.getDate() != null && !r.getDate().isEmpty()
                 ? Date.valueOf(r.getDate()) : new Date(System.currentTimeMillis());
-
             jdbc.update(
-                "INSERT INTO revenus (source, montant, date, description) VALUES (?, ?, ?, ?)",
+                "INSERT INTO revenus (source, montant, date, description, utilisateur_id) VALUES (?, ?, ?, ?, ?)",
                 r.getSource(),
                 r.getMontant() != null ? r.getMontant() : 0.0,
                 date,
-                r.getDescription() != null ? r.getDescription() : ""
+                r.getDescription() != null ? r.getDescription() : "",
+                userId
             );
             return ResponseEntity.ok(Map.of("message", "Revenu ajoute"));
         } catch (Exception e) {
@@ -67,18 +67,18 @@ public class RevenuController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable int id, @RequestBody Revenu r) {
+    public ResponseEntity<?> update(@PathVariable int id, @RequestBody Revenu r, HttpServletRequest request) {
         try {
+            int userId = (int) request.getAttribute("userId");
             Date date = r.getDate() != null && !r.getDate().isEmpty()
                 ? Date.valueOf(r.getDate()) : new Date(System.currentTimeMillis());
-
             jdbc.update(
-                "UPDATE revenus SET source=?, montant=?, date=?, description=? WHERE id=?",
+                "UPDATE revenus SET source=?, montant=?, date=?, description=? WHERE id=? AND utilisateur_id=?",
                 r.getSource(),
                 r.getMontant() != null ? r.getMontant() : 0.0,
                 date,
                 r.getDescription() != null ? r.getDescription() : "",
-                id
+                id, userId
             );
             return ResponseEntity.ok(Map.of("message", "Revenu modifie"));
         } catch (Exception e) {
@@ -88,9 +88,10 @@ public class RevenuController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable int id) {
+    public ResponseEntity<?> delete(@PathVariable int id, HttpServletRequest request) {
         try {
-            jdbc.update("DELETE FROM revenus WHERE id=?", id);
+            int userId = (int) request.getAttribute("userId");
+            jdbc.update("DELETE FROM revenus WHERE id=? AND utilisateur_id=?", id, userId);
             return ResponseEntity.ok(Map.of("message", "Revenu supprime"));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
